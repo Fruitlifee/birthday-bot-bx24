@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BirthdayBot</title>
+<script src="//api.bitrix24.com/api/v1/"></script>
+<style>
+  :root[data-theme="light"] {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f1f4; --border: #e2e4ea;
+    --text: #1a1d27; --text-2: #6b7280; --accent: #3b5bdb; --accent-hover: #2f4bc7;
+    --accent-soft: #eef1fd; --success: #2d9d5c; --success-soft: #eaf7f0;
+    --danger: #d63b3b; --danger-soft: #fdf0f0; --warning: #b45309;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --surface: #1a1d27; --surface-2: #222637; --border: #2e3248;
+    --text: #e8eaf2; --text-2: #7c83a0; --accent: #5c7cfa; --accent-hover: #4c6ef5;
+    --accent-soft: #1e2340; --success: #40c074; --success-soft: #122b1e;
+    --danger: #f06060; --danger-soft: #2b1515; --warning: #f59e0b;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; min-height: 100vh; }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 210px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top:0; left:0; bottom:0; z-index:100; }
+  .sidebar-logo { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
+  .logo-mark { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; flex-shrink:0; }
+  .logo-text { font-size: 13px; font-weight: 600; }
+  .logo-sub { font-size: 11px; color: var(--text-2); }
+  .sidebar-nav { flex: 1; padding: 10px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; cursor: pointer; transition: all .15s; color: var(--text-2); font-size: 13px; font-weight: 500; border: none; background: none; width: 100%; text-align: left; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .sidebar-footer { padding: 10px 8px; border-top: 1px solid var(--border); }
+  .theme-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; color: var(--text-2); font-size: 12px; }
+  .toggle-sw { width: 36px; height: 20px; background: var(--border); border-radius: 10px; position: relative; border: none; cursor: pointer; flex-shrink:0; transition: background .2s; }
+  .toggle-sw::after { content:''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: transform .2s; }
+  [data-theme="dark"] .toggle-sw { background: var(--accent); }
+  [data-theme="dark"] .toggle-sw::after { transform: translateX(16px); }
+  .portal-row { display: flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 11px; color: var(--text-2); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .main { margin-left: 210px; flex: 1; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; position: sticky; top:0; z-index:50; }
+  .page-title { font-size: 14px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .status-badge.active { background: var(--success-soft); color: var(--success); }
+  .status-badge.inactive { background: var(--surface-2); color: var(--text-2); }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .content { padding: 24px; max-width: 780px; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
+  .card-header { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-icon { width: 24px; height: 24px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .card-body { padding: 16px 20px; }
+  .section-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+  .pill-toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .pill-toggle input { display: none; }
+  .pill-slider { position: absolute; inset: 0; background: var(--border); border-radius: 11px; cursor: pointer; transition: background .2s; }
+  .pill-slider::after { content:''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform .2s; box-shadow: var(--shadow-sm); }
+  .pill-toggle input:checked + .pill-slider { background: var(--accent); }
+  .pill-toggle input:checked + .pill-slider::after { transform: translateX(18px); }
+
+  /* FORM */
+  .form-row { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 11px; font-weight: 500; color: var(--text-2); margin-bottom: 5px; letter-spacing: .03em; text-transform: uppercase; }
+  .form-input, .form-select, .form-textarea { width: 100%; padding: 8px 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-size: 13px; font-family: inherit; transition: border-color .15s, box-shadow .15s; appearance: none; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .helper { font-size: 11px; color: var(--text-2); margin-top: 4px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+  /* CHECKBOXES */
+  .check-group { display: flex; flex-direction: column; gap: 8px; }
+  .check-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; transition: all .15s; background: var(--surface-2); }
+  .check-item:hover { border-color: var(--accent); }
+  .check-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .check-item input { display: none; }
+  .check-box { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+  .check-item.selected .check-box { background: var(--accent); border-color: var(--accent); color: white; font-size: 10px; }
+  .check-item.selected .check-box::after { content: '✓'; }
+  .check-label { font-size: 13px; font-weight: 500; }
+  .check-desc { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+  /* OFFSET CHIPS */
+  .offset-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; font-weight: 500; cursor: pointer; background: var(--surface-2); color: var(--text-2); transition: all .15s; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* BUTTONS */
+  .btn { padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .stat-label { font-size: 11px; color: var(--text-2); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+  /* LOGS */
+  .log-list { display: flex; flex-direction: column; gap: 5px; }
+  .log-item { display: flex; gap: 10px; font-size: 12px; padding: 7px 10px; border-radius: 6px; background: var(--surface-2); }
+  .log-time { color: var(--text-2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .log-lv { flex-shrink: 0; font-weight: 600; width: 38px; text-align: right; }
+  .log-lv.info { color: var(--accent); }
+  .log-lv.error { color: var(--danger); }
+  .log-msg { flex: 1; }
+
+  /* VAR BUTTONS */
+  .var-btns { display: flex; gap: 5px; margin-bottom: 5px; flex-wrap: wrap; }
+  .var-btn { padding: 3px 9px; border-radius: 5px; border: 1px solid var(--accent); color: var(--accent); font-size: 11px; font-weight: 500; cursor: pointer; background: var(--accent-soft); font-family: inherit; }
+  .var-btn:hover { background: var(--accent); color: white; }
+
+  /* PREVIEW */
+  .preview-box { padding: 12px 14px; background: var(--surface-2); border-radius: 8px; margin-bottom: 14px; }
+  .preview-label { font-size: 11px; color: var(--text-2); margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+  .preview-text { font-size: 13px; min-height: 20px; }
+
+  /* TOAST */
+  .toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; animation: slideUp .2s ease; }
+  .toast.success { background: var(--success); color: white; }
+  .toast.error { background: var(--danger); color: white; }
+  @keyframes slideUp { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+  .section-disabled { opacity: .4; pointer-events: none; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .empty { text-align: center; padding: 40px; color: var(--text-2); }
+
+  /* CHECK STATUS */
+  .status-list { display: flex; flex-direction: column; gap: 10px; }
+  .status-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .status-icon { font-size: 16px; width: 20px; text-align: center; }
+  .step-list { display: flex; flex-direction: column; gap: 12px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num { width: 24px; height: 24px; background: var(--accent-soft); color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .step-title { font-size: 13px; font-weight: 500; }
+  .step-desc { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">&#127874;</div>
+        <div><div class="logo-text">BirthdayBot</div><div class="logo-sub">для Bitrix24</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="showPage('dashboard',this)">&#9685;&nbsp; Обзор</button>
+      <button class="nav-item" onclick="showPage('reminders',this)">&#9654;&nbsp; Напоминания</button>
+      <button class="nav-item" onclick="showPage('messages',this)">&#9993;&nbsp; Сообщения</button>
+      <button class="nav-item" onclick="showPage('logs',this)">&#9776;&nbsp; Журнал</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="theme-row" onclick="toggleTheme()">
+        <button class="toggle-sw"></button>
+        <span id="themeLabel">Светлая</span>
+      </div>
+      <div class="portal-row"><div class="dot"></div><span id="portalName">Загрузка...</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="page-title" id="pageTitle">Обзор</div>
+      <div class="topbar-right">
+        <span class="status-badge inactive" id="statusBadge"><span class="status-dot"></span><span id="statusText">Настройка</span></span>
+        <button class="btn btn-ghost btn-sm" onclick="testRun()" id="testBtn">Проверить сейчас</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="content">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" id="statR">—</div><div class="stat-label">Напоминаний в месяц</div></div>
+          <div class="stat-card"><div class="stat-value" id="statM">—</div><div class="stat-label">Сообщений в месяц</div></div>
+          <div class="stat-card"><div class="stat-value" id="statC">—</div><div class="stat-label">Контактов с ДР</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title"><div class="card-icon">&#9888;</div>Статус</div></div>
+          <div class="card-body">
+            <div class="status-list">
+              <div class="status-row"><span class="status-icon" id="chk-portal">○</span><span>Портал подключён</span></div>
+              <div class="status-row"><span class="status-icon" id="chk-reminder">○</span><span>Напоминания настроены</span></div>
+              <div class="status-row"><span class="status-icon" id="chk-message">○</span><span>Сообщения настроены</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title"><div class="card-icon">&#9432;</div>Как работает</div></div>
+          <div class="card-body">
+            <div class="step-list">
+              <div class="step"><div class="step-num">1</div><div><div class="step-title">Каждый день в заданное время</div><div class="step-desc">Система проверяет дни рождения в поле BIRTHDATE всех контактов CRM</div></div></div>
+              <div class="step"><div class="step-num">2</div><div><div class="step-title">Создаёт напоминания сотрудникам</div><div class="step-desc">Дело в контакте, задача или уведомление — на ваш выбор</div></div></div>
+              <div class="step"><div class="step-num">3</div><div><div class="step-title">Отправляет поздравление клиенту</div><div class="step-desc">Персональное сообщение с именем в карточке контакта</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REMINDERS -->
+    <div class="page" id="page-reminders">
+      <div class="content">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><div class="card-icon">&#9654;</div>Напоминания сотрудникам</div>
+            <div class="section-toggle">
+              <span id="rToggleLabel">Выключено</span>
+              <label class="pill-toggle"><input type="checkbox" id="rEnabled" onchange="onRToggle()"><span class="pill-slider"></span></label>
+            </div>
+          </div>
+          <div class="card-body" id="rBody" style="opacity:.4;pointer-events:none">
+            <div class="form-row">
+              <div class="form-label">Тип напоминания</div>
+              <div class="check-group">
+                <label class="check-item" onclick="toggleCheck(this,'activity')"><input type="checkbox" value="activity"><div class="check-box"></div><div><div class="check-label">Дело в контакте</div><div class="check-desc">Активность в карточке контакта CRM</div></div></label>
+                <label class="check-item" onclick="toggleCheck(this,'task')"><input type="checkbox" value="task"><div class="check-box"></div><div><div class="check-label">Задача</div><div class="check-desc">Задача с привязкой к контакту</div></div></label>
+                <label class="check-item" onclick="toggleCheck(this,'notification')"><input type="checkbox" value="notification"><div class="check-box"></div><div><div class="check-label">Уведомление</div><div class="check-desc">Push-уведомление в Битрикс24</div></div></label>
+              </div>
+            </div>
+            <hr>
+            <div class="form-row">
+              <div class="form-label">Когда</div>
+              <div class="offset-grid" id="rOffsetGrid">
+                <span class="chip active" data-v="-3" onclick="selChip(this,'r')">За 3 дня</span>
+                <span class="chip" data-v="-2" onclick="selChip(this,'r')">За 2 дня</span>
+                <span class="chip" data-v="-1" onclick="selChip(this,'r')">За 1 день</span>
+                <span class="chip" data-v="0" onclick="selChip(this,'r')">В день рождения</span>
+                <span class="chip" data-v="1" onclick="selChip(this,'r')">На следующий день</span>
+              </div>
+              <div class="helper" id="rOffsetHint">Напоминание придёт за 3 дня</div>
+            </div>
+            <div class="form-row" style="max-width:160px">
+              <div class="form-label">Время</div>
+              <input type="time" class="form-input" id="rTime" value="09:00">
+            </div>
+            <hr>
+            <div class="form-row">
+              <div class="form-label">Ответственный</div>
+              <select class="form-select" id="rResponsible"><option value="">Из карточки контакта</option></select>
+              <div class="helper">Если не выбран — берётся из карточки контакта</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-ghost" onclick="loadSettings()">Сбросить</button>
+          <button class="btn btn-primary" onclick="saveSettings()" id="saveBtn">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="page" id="page-messages">
+      <div class="content">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><div class="card-icon">&#9993;</div>Сообщение клиенту</div>
+            <div class="section-toggle">
+              <span id="mToggleLabel">Выключено</span>
+              <label class="pill-toggle"><input type="checkbox" id="mEnabled" onchange="onMToggle()"><span class="pill-slider"></span></label>
+            </div>
+          </div>
+          <div class="card-body" id="mBody" style="opacity:.4;pointer-events:none">
+            <div class="form-row">
+              <div class="form-label">Текст сообщения</div>
+              <div class="var-btns">
+                <button class="var-btn" onclick="insVar('{NAME}')">Имя</button>
+                <button class="var-btn" onclick="insVar('{LAST_NAME}')">Фамилия</button>
+                <button class="var-btn" onclick="insVar('{FULL_NAME}')">Имя + Фамилия</button>
+              </div>
+              <textarea class="form-textarea" id="mText" rows="4" placeholder="Пример: Дорогой {NAME}, поздравляем с днём рождения! Начисляем вам 500 бонусов." oninput="updatePreview()"></textarea>
+            </div>
+            <div class="preview-box">
+              <div class="preview-label">Предпросмотр</div>
+              <div class="preview-text" id="mPreview"><span style="color:var(--text-2)">Введите текст выше</span></div>
+            </div>
+            <hr>
+            <div class="form-row">
+              <div class="form-label">Когда отправить</div>
+              <div class="offset-grid" id="mOffsetGrid">
+                <span class="chip" data-v="-1" onclick="selChip(this,'m')">За 1 день</span>
+                <span class="chip active" data-v="0" onclick="selChip(this,'m')">В день рождения</span>
+                <span class="chip" data-v="1" onclick="selChip(this,'m')">На следующий день</span>
+              </div>
+              <div class="helper" id="mOffsetHint">Отправится в день рождения</div>
+            </div>
+            <div class="form-row" style="max-width:160px">
+              <div class="form-label">Время</div>
+              <input type="time" class="form-input" id="mTime" value="10:00">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-ghost" onclick="loadSettings()">Сбросить</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="page" id="page-logs">
+      <div class="content">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><div class="card-icon">&#9776;</div>Журнал событий</div>
+            <button class="btn btn-ghost btn-sm" onclick="renderLogs()">Обновить</button>
+          </div>
+          <div class="card-body" id="logsList"><div class="empty">Журнал пуст — события появятся после первого запуска</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+const S = {
+  domain: '',
+  userId: '',
+  accessToken: '',
+  users: [],
+  rTypes: [],
+  rOffset: -3,
+  mOffset: 0,
+  logs: [],
+  stats: { reminders: 0, messages: 0, contacts: 0 },
+  processed: JSON.parse(localStorage.getItem('bday_processed') || '{}'),
+};
+
+function saveProcessed() { localStorage.setItem('bday_processed', JSON.stringify(S.processed)); }
+function saveConfig() {
+  localStorage.setItem('bday_cfg', JSON.stringify({
+    rEnabled: document.getElementById('rEnabled').checked,
+    rTypes: S.rTypes,
+    rOffset: S.rOffset,
+    rTime: document.getElementById('rTime').value,
+    rResponsible: document.getElementById('rResponsible').value,
+    mEnabled: document.getElementById('mEnabled').checked,
+    mText: document.getElementById('mText').value,
+    mOffset: S.mOffset,
+    mTime: document.getElementById('mTime').value,
+  }));
+}
+
+// ── BX24 INIT ──────────────────────────────────────────────
+BX24.init(function() {
+  const auth = BX24.getAuth();
+  S.accessToken = auth.access_token;
+  S.domain = auth.domain;
+  document.getElementById('portalName').textContent = S.domain;
+
+  BX24.callMethod('user.current', {}, function(r) {
+    if (r.data()) S.userId = r.data().ID;
+  });
+
+  BX24.fitWindow();
+  loadUsers();
+  loadSettings();
+  loadStats();
+  startDailyChecker();
+});
+
+// ── BX24 API HELPER ────────────────────────────────────────
+function bxCall(method, params) {
+  return new Promise((resolve, reject) => {
+    BX24.callMethod(method, params, function(r) {
+      if (r.error()) reject(r.error()); else resolve(r.data());
+    });
+  });
+}
+
+async function bxBatch(calls) {
+  return new Promise((resolve, reject) => {
+    BX24.callBatch(calls, function(r) { resolve(r); }, true);
+  });
+}
+
+// ── LOAD USERS ─────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const users = await bxCall('user.get', { filter: { ACTIVE: true } });
+    S.users = users || [];
+    const sel = document.getElementById('rResponsible');
+    S.users.forEach(u => {
+      const o = document.createElement('option');
+      o.value = u.ID;
+      o.textContent = [u.NAME, u.LAST_NAME].filter(Boolean).join(' ');
+      sel.appendChild(o);
+    });
+    const cfg = JSON.parse(localStorage.getItem('bday_cfg') || '{}');
+    if (cfg.rResponsible) sel.value = cfg.rResponsible;
+  } catch(e) {}
+}
+
+// ── LOAD STATS ─────────────────────────────────────────────
+async function loadStats() {
+  try {
+    // Count contacts with birthday
+    const r = await bxCall('crm.contact.list', {
+      filter: { '!=BIRTHDATE': '' },
+      select: ['ID'],
+    });
+    const cnt = Array.isArray(r) ? r.length : 0;
+    S.stats.contacts = cnt;
+    document.getElementById('statC').textContent = cnt;
+
+    // Count from processed
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+    let remCnt = 0, msgCnt = 0;
+    Object.keys(S.processed).forEach(k => {
+      if (k.includes('_reminder_' + monthKey)) remCnt++;
+      if (k.includes('_message_' + monthKey)) msgCnt++;
+    });
+    S.stats.reminders = remCnt;
+    S.stats.messages = msgCnt;
+    document.getElementById('statR').textContent = remCnt;
+    document.getElementById('statM').textContent = msgCnt;
+  } catch(e) {}
+}
+
+// ── LOAD / SAVE SETTINGS ───────────────────────────────────
+function loadSettings() {
+  const cfg = JSON.parse(localStorage.getItem('bday_cfg') || '{}');
+  
+  const rEn = !!cfg.rEnabled;
+  document.getElementById('rEnabled').checked = rEn;
+  document.getElementById('rBody').style.opacity = rEn ? '1' : '.4';
+  document.getElementById('rBody').style.pointerEvents = rEn ? '' : 'none';
+  document.getElementById('rToggleLabel').textContent = rEn ? 'Включено' : 'Выключено';
+
+  S.rTypes = cfg.rTypes || [];
+  document.querySelectorAll('.check-item').forEach(el => {
+    const v = el.querySelector('input')?.value;
+    el.classList.toggle('selected', S.rTypes.includes(v));
+  });
+
+  S.rOffset = cfg.rOffset ?? -3;
+  document.querySelectorAll('#rOffsetGrid .chip').forEach(c => c.classList.toggle('active', parseInt(c.dataset.v) === S.rOffset));
+  updateOffsetHint('r', S.rOffset);
+
+  if (cfg.rTime) document.getElementById('rTime').value = cfg.rTime;
+
+  const mEn = !!cfg.mEnabled;
+  document.getElementById('mEnabled').checked = mEn;
+  document.getElementById('mBody').style.opacity = mEn ? '1' : '.4';
+  document.getElementById('mBody').style.pointerEvents = mEn ? '' : 'none';
+  document.getElementById('mToggleLabel').textContent = mEn ? 'Включено' : 'Выключено';
+
+  if (cfg.mText) document.getElementById('mText').value = cfg.mText;
+  S.mOffset = cfg.mOffset ?? 0;
+  document.querySelectorAll('#mOffsetGrid .chip').forEach(c => c.classList.toggle('active', parseInt(c.dataset.v) === S.mOffset));
+  updateOffsetHint('m', S.mOffset);
+  if (cfg.mTime) document.getElementById('mTime').value = cfg.mTime;
+  updatePreview();
+  updateStatus();
+  updateChecks();
+}
+
+function saveSettings() {
+  saveConfig();
+  showToast('Настройки сохранены', 'success');
+  updateStatus();
+  updateChecks();
+}
+
+// ── DAILY CHECKER ──────────────────────────────────────────
+function startDailyChecker() {
+  checkBirthdays();
+  setInterval(checkBirthdays, 60 * 1000); // check every minute
+}
+
+async function checkBirthdays() {
+  const cfg = JSON.parse(localStorage.getItem('bday_cfg') || '{}');
+  const now = new Date();
+  const hm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const todayStr = now.toISOString().slice(0,10);
+  const yearMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+
+  const rDue = cfg.rEnabled && cfg.rTime === hm;
+  const mDue = cfg.mEnabled && cfg.mTime === hm;
+  if (!rDue && !mDue) return;
+
+  let contacts;
+  try {
+    contacts = await getAllBirthdayContacts();
+  } catch(e) { addLog('error', 'Не удалось загрузить контакты: ' + e); return; }
+
+  for (const contact of contacts) {
+    const bday = parseBirthday(contact.BIRTHDATE);
+    if (!bday) continue;
+
+    const name = [contact.NAME, contact.LAST_NAME].filter(Boolean).join(' ') || `#${contact.ID}`;
+    const resp = cfg.rResponsible || contact.ASSIGNED_BY_ID || S.userId || '1';
+
+    // Reminders
+    if (rDue) {
+      const offset = cfg.rOffset ?? -3;
+      const trigDate = new Date(bday); trigDate.setDate(trigDate.getDate() + parseInt(offset));
+      if (sameDay(trigDate, now)) {
+        const key = `${contact.ID}_reminder_${yearMonthKey}_${todayStr}`;
+        if (!S.processed[key]) {
+          const subject = `День рождения: ${name}`;
+          const desc = offsetLabel(offset);
+          const types = cfg.rTypes || [];
+          if (types.includes('activity')) {
+            bxCall('crm.activity.add', { fields: { OWNER_TYPE_ID: 3, OWNER_ID: parseInt(contact.ID), TYPE_ID: 6, SUBJECT: subject, DESCRIPTION: desc, RESPONSIBLE_ID: parseInt(resp), COMPLETED: 'N', PRIORITY: 2, DEADLINE: new Date(Date.now()+86400000).toISOString() }})
+              .then(() => addLog('info', `Дело создано: ${name}`)).catch(e => addLog('error', `Дело: ${e}`));
+          }
+          if (types.includes('task')) {
+            bxCall('tasks.task.add', { fields: { TITLE: subject, DESCRIPTION: desc, RESPONSIBLE_ID: parseInt(resp), DEADLINE: new Date(Date.now()+86400000).toISOString(), UF_CRM_TASK: [`C_${contact.ID}`] }})
+              .then(() => addLog('info', `Задача создана: ${name}`)).catch(e => addLog('error', `Задача: ${e}`));
+          }
+          if (types.includes('notification')) {
+            bxCall('im.notify.system.add', { USER_ID: parseInt(resp), MESSAGE: `${subject}\n${desc}` })
+              .then(() => addLog('info', `Уведомление: ${name}`)).catch(e => addLog('error', `Уведомление: ${e}`));
+          }
+          S.processed[key] = Date.now();
+          saveProcessed();
+          S.stats.reminders++;
+          document.getElementById('statR').textContent = S.stats.reminders;
+        }
+      }
+    }
+
+    // Messages
+    if (mDue && cfg.mText) {
+      const offset = cfg.mOffset ?? 0;
+      const trigDate = new Date(bday); trigDate.setDate(trigDate.getDate() + parseInt(offset));
+      if (sameDay(trigDate, now)) {
+        const key = `${contact.ID}_message_${yearMonthKey}_${todayStr}`;
+        if (!S.processed[key]) {
+          const text = cfg.mText.replace(/\{NAME\}/g, contact.NAME||'').replace(/\{LAST_NAME\}/g, contact.LAST_NAME||'').replace(/\{FULL_NAME\}/g, name);
+          bxCall('crm.timeline.comment.add', { fields: { ENTITY_ID: parseInt(contact.ID), ENTITY_TYPE: 'contact', COMMENT: text }})
+            .then(() => addLog('info', `Сообщение отправлено: ${name}`)).catch(e => addLog('error', `Сообщение: ${e}`));
+          S.processed[key] = Date.now();
+          saveProcessed();
+          S.stats.messages++;
+          document.getElementById('statM').textContent = S.stats.messages;
+        }
+      }
+    }
+  }
+}
+
+async function getAllBirthdayContacts() {
+  const all = []; let start = 0;
+  while(true) {
+    const r = await bxCall('crm.contact.list', {
+      select: ['ID','NAME','LAST_NAME','BIRTHDATE','ASSIGNED_BY_ID'],
+      filter: { '!=BIRTHDATE': '' },
+      start,
+    });
+    if (!r || !r.length) break;
+    all.push(...r.filter(c => c.BIRTHDATE));
+    if (r.length < 50) break;
+    start += 50;
+  }
+  return all;
+}
+
+async function testRun() {
+  const btn = document.getElementById('testBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Запуск...';
+  
+  const cfg = JSON.parse(localStorage.getItem('bday_cfg') || '{}');
+  if (!cfg.rEnabled && !cfg.mEnabled) {
+    showToast('Включите напоминания или сообщения', 'error');
+    btn.disabled = false; btn.textContent = 'Проверить сейчас';
+    return;
+  }
+
+  try {
+    const contacts = await getAllBirthdayContacts();
+    addLog('info', `Найдено контактов с ДР: ${contacts.length}`);
+    document.getElementById('statC').textContent = contacts.length;
+    
+    // Показываем ближайшие дни рождения
+    const today = new Date();
+    const soon = contacts.filter(c => {
+      const b = parseBirthday(c.BIRTHDATE);
+      if (!b) return false;
+      const diff = Math.round((b - today) / 86400000);
+      return diff >= -1 && diff <= 7;
+    });
+    
+    if (soon.length) {
+      addLog('info', `Ближайшие ДР (7 дней): ${soon.map(c => [c.NAME, c.LAST_NAME].filter(Boolean).join(' ')).join(', ')}`);
+    } else {
+      addLog('info', 'Ближайших дней рождения (7 дней) нет');
+    }
+    
+    showToast(`Проверено: ${contacts.length} контактов`, 'success');
+    showPage('logs', document.querySelectorAll('.nav-item')[3]);
+    renderLogs();
+  } catch(e) {
+    addLog('error', 'Ошибка: ' + e);
+    showToast('Ошибка проверки', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Проверить сейчас';
+  }
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function parseBirthday(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const year = new Date().getFullYear();
+  return new Date(year, parseInt(m[2])-1, parseInt(m[3]));
+}
+
+function sameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+
+function offsetLabel(n) {
+  if (n===0) return 'День рождения сегодня!';
+  if (n<0) return `До дня рождения: ${Math.abs(n)} дн.`;
+  return `Прошло ${n} дн. с дня рождения`;
+}
+
+function updateOffsetHint(type, val) {
+  const el = document.getElementById(type+'OffsetHint');
+  if (!el) return;
+  const noun = type==='r' ? 'Напоминание придёт' : 'Сообщение отправится';
+  if (val===0) el.textContent = noun+' в день рождения';
+  else if (val<0) el.textContent = noun+` за ${Math.abs(val)} дн. до дня рождения`;
+  else el.textContent = noun+` через ${val} дн. после дня рождения`;
+}
+
+function addLog(level, msg) {
+  S.logs.unshift({ level, msg, time: new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}) });
+  if (S.logs.length > 200) S.logs.pop();
+}
+
+function renderLogs() {
+  const el = document.getElementById('logsList');
+  if (!S.logs.length) { el.innerHTML = '<div class="empty">Журнал пуст</div>'; return; }
+  el.innerHTML = '<div class="log-list">' + S.logs.map(l =>
+    `<div class="log-item"><span class="log-time">${l.time}</span><span class="log-lv ${l.level}">${l.level.toUpperCase()}</span><span class="log-msg">${esc(l.msg)}</span></div>`
+  ).join('') + '</div>';
+}
+
+function updateStatus() {
+  const rOn = document.getElementById('rEnabled').checked;
+  const mOn = document.getElementById('mEnabled').checked;
+  const active = rOn || mOn;
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'status-badge ' + (active?'active':'inactive');
+  document.getElementById('statusText').textContent = active ? 'Работает' : 'Настройка';
+}
+
+function updateChecks() {
+  const setC = (id, ok) => {
+    const el = document.getElementById(id);
+    el.textContent = ok ? '✓' : '○';
+    el.style.color = ok ? 'var(--success)' : 'var(--text-2)';
+  };
+  setC('chk-portal', !!S.domain);
+  setC('chk-reminder', document.getElementById('rEnabled').checked && S.rTypes.length > 0);
+  setC('chk-message', document.getElementById('mEnabled').checked && !!document.getElementById('mText').value.trim());
+}
+
+// ── UI ─────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  const titles = {dashboard:'Обзор',reminders:'Напоминания',messages:'Сообщения',logs:'Журнал'};
+  document.getElementById('pageTitle').textContent = titles[name]||name;
+  if (name==='logs') renderLogs();
+  if (name==='dashboard') loadStats();
+}
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const dark = html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme', dark?'light':'dark');
+  document.getElementById('themeLabel').textContent = dark?'Светлая':'Тёмная';
+  localStorage.setItem('bday_theme', dark?'light':'dark');
+}
+
+function toggleCheck(el, val) {
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) { if (!S.rTypes.includes(val)) S.rTypes.push(val); }
+  else S.rTypes = S.rTypes.filter(t => t!==val);
+}
+
+function selChip(el, type) {
+  const grid = type==='r' ? 'rOffsetGrid' : 'mOffsetGrid';
+  document.querySelectorAll('#'+grid+' .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const v = parseInt(el.dataset.v);
+  if (type==='r') S.rOffset=v; else S.mOffset=v;
+  updateOffsetHint(type, v);
+}
+
+function onRToggle() {
+  const on = document.getElementById('rEnabled').checked;
+  document.getElementById('rBody').style.opacity = on?'1':'.4';
+  document.getElementById('rBody').style.pointerEvents = on?'':'none';
+  document.getElementById('rToggleLabel').textContent = on?'Включено':'Выключено';
+}
+
+function onMToggle() {
+  const on = document.getElementById('mEnabled').checked;
+  document.getElementById('mBody').style.opacity = on?'1':'.4';
+  document.getElementById('mBody').style.pointerEvents = on?'':'none';
+  document.getElementById('mToggleLabel').textContent = on?'Включено':'Выключено';
+}
+
+function insVar(v) {
+  const ta = document.getElementById('mText');
+  const pos = ta.selectionStart;
+  ta.value = ta.value.slice(0,pos)+v+ta.value.slice(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = pos+v.length;
+  ta.focus(); updatePreview();
+}
+
+function updatePreview() {
+  const txt = document.getElementById('mText').value;
+  const el = document.getElementById('mPreview');
+  if (!txt.trim()) { el.innerHTML='<span style="color:var(--text-2)">Введите текст выше</span>'; return; }
+  el.innerHTML = txt.replace(/\{NAME\}/g,'<strong>Айжамал</strong>').replace(/\{LAST_NAME\}/g,'<strong>Аманай</strong>').replace(/\{FULL_NAME\}/g,'<strong>Айжамал Аманай</strong>').replace(/\n/g,'<br>');
+}
+
+function showToast(msg, type='success') {
+  const w = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className='toast '+type; t.textContent=msg;
+  w.appendChild(t); setTimeout(()=>t.remove(), 3000);
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Init theme
+(function(){ const t=localStorage.getItem('bday_theme'); if(t){ document.documentElement.setAttribute('data-theme',t); document.addEventListener('DOMContentLoaded',()=>{ const el=document.getElementById('themeLabel'); if(el) el.textContent=t==='dark'?'Тёмная':'Светлая'; }); }})();
+</script>
+</body>
+</html>
