@@ -1,0 +1,36 @@
+name: BirthdayBot
+
+on:
+  schedule:
+      - cron: '0 * * * *'
+        workflow_dispatch:
+            inputs:
+                  force_run:
+                          description: 'Force run'
+                                  default: 'false'
+
+                                  jobs:
+                                    run:
+                                        runs-on: ubuntu-latest
+                                            timeout-minutes: 15
+                                                steps:
+                                                      - uses: actions/checkout@v4
+                                                            - uses: actions/setup-node@v4
+                                                                    with:
+                                                                              node-version: '20'
+                                                                                    - run: cd scripts && npm install --production
+                                                                                          - run: cd scripts && node birthday.js
+                                                                                                  env:
+                                                                                                            BITRIX_WEBHOOK:          ${{ secrets.BITRIX_WEBHOOK }}
+                                                                                                                      TIMEZONE_OFFSET:         ${{ vars.TIMEZONE_OFFSET }}
+                                                                                                                                REMINDER_ENABLED:        ${{ vars.REMINDER_ENABLED }}
+                                                                                                                                          REMINDER_TYPES:          ${{ vars.REMINDER_TYPES }}
+                                                                                                                                                    REMINDER_OFFSET_DAYS:    ${{ vars.REMINDER_OFFSET_DAYS }}
+                                                                                                                                                              REMINDER_TIME:           ${{ vars.REMINDER_TIME }}
+                                                                                                                                                                        REMINDER_RESPONSIBLE_ID: ${{ vars.REMINDER_RESPONSIBLE_ID }}
+                                                                                                                                                                                  MESSAGE_ENABLED:         ${{ vars.MESSAGE_ENABLED }}
+                                                                                                                                                                                            MESSAGE_TEXT:            ${{ vars.MESSAGE_TEXT }}
+                                                                                                                                                                                                      MESSAGE_OFFSET_DAYS:     ${{ vars.MESSAGE_OFFSET_DAYS }}
+                                                                                                                                                                                                                MESSAGE_TIME:            ${{ vars.MESSAGE_TIME }}
+                                                                                                                                                                                                                          FORCE_RUN:               ${{ github.event.inputs.force_run }}
+                                                                                                                                                                                                                          
